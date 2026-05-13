@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum OperationType {
+  DEPOT
+  RETRAIT
+}
+
+enum OperationStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  TIMEOUT
+}
+
+enum Operator {
+  ORANGE
+  MTN
+  MOOV
+  WAVE
+}
+
+model User {
+  id           String      @id @default(uuid())
+  username     String      @unique
+  email        String      @unique
+  password     String
+  role         Role        @default(USER)
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  operations   Operation[]
+}
+
+model OperatorConfig {
+  id              String    @id @default(uuid())
+  operator        Operator  @unique
+  name            String
+  isActive        Boolean   @default(true)
+  ussdDepot       String?
+  ussdRetrait     String?
+  ussdBalance     String?
+  // Patterns SMS pour détecter succès/échec
+  smsSuccessDepot    String?
+  smsSuccessRetrait  String?
+  smsFailurePatterns String?
+  // Pour Wave: utilise notifications au lieu de SMS
+  usesNotification   Boolean @default(false)
+  notifPackageName   String?
+  notifSuccessDepot    String?
+  notifSuccessRetrait  String?
+  // Délai d'attente max pour confirmation (secondes)
+  timeoutSeconds  Int       @default(120)
+  // Préfixe numéros (ex: 07, 05, 01...)
+  numberPrefixes  String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  operations      Operation[]
+}
+
+model Operation {
+  id              String          @id @default(uuid())
+  reference       String          @unique @default(uuid())
+  type            OperationType
+  status          OperationStatus @default(PENDING)
+  operator        Operator
+  amount          Float
+  phoneNumber     String
+  // User qui a créé l'opération
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  // Config opérateur
+  operatorConfigId String
+  operatorConfig  OperatorConfig  @relation(fields: [operatorConfigId], references: [id])
+  // Code USSD envoyé
+  ussdCode        String?
+  // Message de confirmation reçu (SMS ou notification)
+  confirmationMessage String?
+  confirmationReceivedAt DateTime?
+  // Identifiant transaction opérateur (extrait du SMS)
+  operatorTransactionId String?
+  // Numéro de l'agent/appareil Android qui a traité
+  deviceId        String?
+  // Notes / erreur
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  logs            OperationLog[]
+}
+
+model OperationLog {
+  id          String    @id @default(uuid())
+  operationId String
+  operation   Operation @relation(fields: [operationId], references: [id])
+  message     String
+  level       String    @default("INFO")
+  createdAt   DateTime  @default(now())
+}
+
+model Device {
+  id          String    @id @default(uuid())
+  deviceId    String    @unique
+  name        String
+  phoneNumber String?
+  isActive    Boolean   @default(true)
+  lastSeenAt  DateTime?
+  token       String    @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}

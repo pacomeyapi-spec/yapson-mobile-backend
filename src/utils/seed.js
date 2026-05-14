@@ -74,7 +74,7 @@ async function main() {
       smsFailurePatterns: null,
       // Wave utilise les notifications de l'app Wave
       usesNotification: true,
-      notifPackageName: 'com.wave.finance',
+      notifPackageName: 'com.wave.personal',
       notifSuccessDepot: 'vous avez recu.*(?P<txid>[A-Z0-9]{6,})',
       notifSuccessRetrait: 'retrait.*effectue.*(?P<txid>[A-Z0-9]{6,})',
       timeoutSeconds: 180,

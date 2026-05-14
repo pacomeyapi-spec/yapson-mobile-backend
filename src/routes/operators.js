@@ -41,6 +41,10 @@ router.put('/:operator', authenticate, requireAdmin, async (req, res) => {
     const data = {
       name: req.body.name || operator,
       isActive: req.body.isActive ?? true,
+      ussdStepsDepot: req.body.ussdStepsDepot ? JSON.stringify(req.body.ussdStepsDepot) : null,
+      ussdStepsRetrait: req.body.ussdStepsRetrait ? JSON.stringify(req.body.ussdStepsRetrait) : null,
+      ussdStepsBalance: req.body.ussdStepsBalance ? JSON.stringify(req.body.ussdStepsBalance) : null,
+      validationCode: req.body.validationCode || null,
       ussdDepot: req.body.ussdDepot || null,
       ussdRetrait: req.body.ussdRetrait || null,
       ussdBalance: req.body.ussdBalance || null,

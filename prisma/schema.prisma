@@ -49,18 +49,31 @@ model OperatorConfig {
   operator        Operator  @unique
   name            String
   isActive        Boolean   @default(true)
+
+  // Séquences USSD — stockées en JSON
+  // Format: [{"step": 1, "value": "*145#"}, {"step": 2, "value": "1"}, ...]
+  // Variables: {NUMERO}, {MONTANT}, {CODE}
+  ussdStepsDepot    String?   // JSON array des étapes USSD pour dépôt
+  ussdStepsRetrait  String?   // JSON array des étapes USSD pour retrait
+  ussdStepsBalance  String?   // JSON array des étapes USSD pour solde
+  validationCode    String?   // Code PIN/validation de l'agent pour confirmer
+
+  // Anciens champs conservés pour compatibilité
   ussdDepot       String?
   ussdRetrait     String?
   ussdBalance     String?
+
   // Patterns SMS pour détecter succès/échec
   smsSuccessDepot    String?
   smsSuccessRetrait  String?
   smsFailurePatterns String?
+
   // Pour Wave: utilise notifications au lieu de SMS
   usesNotification   Boolean @default(false)
   notifPackageName   String?
   notifSuccessDepot    String?
   notifSuccessRetrait  String?
+
   // Délai d'attente max pour confirmation (secondes)
   timeoutSeconds  Int       @default(120)
   // Préfixe numéros (ex: 07, 05, 01...)

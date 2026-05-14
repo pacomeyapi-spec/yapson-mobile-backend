@@ -47,24 +47,59 @@ const parseConfirmation = async (operator, operationType, message) => {
       if (match) {
         // Extraire l'ID de transaction (groupe capturant nommé ou premier groupe)
         const transactionId = match.groups?.txid || match.groups?.id || match[1] || null;
-        return { status: 'SUCCESS', transactionId, reason: null };
+
+        // Extraire et normaliser le montant (remplacer virgule par point)
+        let amount = match.groups?.montant || match.groups?.amount || null;
+        if (amount) {
+          amount = parseFloat(amount.replace(',', '.')) || null;
+        }
+
+        // Extraire le numéro si présent
+        const phoneNumber = match.groups?.numero || match.groups?.phone || null;
+
+        return { status: 'SUCCESS', transactionId, amount, phoneNumber, reason: null };
       }
     } catch (e) {}
   }
 
-  return { status: 'UNKNOWN', transactionId: null, reason: 'Aucun pattern ne correspond' };
+  return { status: 'UNKNOWN', transactionId: null, amount: null, phoneNumber: null, reason: 'Aucun pattern ne correspond' };
 };
 
 /**
- * Construire le code USSD pour une opération donnée.
- * Le code peut contenir des placeholders: {montant}, {numero}, {pin}
+ * Construire la séquence USSD multi-étapes pour une opération donnée.
+ * Remplace les variables: {NUMERO}, {MONTANT}, {CODE}
+ * Retourne un tableau d'étapes ordonnées.
  */
-const buildUssdCode = (template, { amount, phoneNumber, pin }) => {
+const buildUssdSteps = (stepsJson, { amount, phoneNumber, validationCode }) => {
+  if (!stepsJson) return [];
+  let steps = [];
+  try {
+    steps = JSON.parse(stepsJson);
+  } catch (e) {
+    return [];
+  }
+  return steps.map(step =>
+    step
+      .replace(/\{NUMERO\}/gi, phoneNumber || '')
+      .replace(/\{MONTANT\}/gi, amount || '')
+      .replace(/\{CODE\}/gi, validationCode || '')
+  );
+};
+
+/**
+ * Construire le code USSD pour une opération donnée (compatibilité ancien format).
+ * Le code peut contenir des placeholders: {MONTANT}, {NUMERO}, {CODE}
+ */
+const buildUssdCode = (template, { amount, phoneNumber, validationCode, pin }) => {
   if (!template) return null;
   return template
-    .replace('{montant}', amount)
-    .replace('{numero}', phoneNumber)
-    .replace('{pin}', pin || '');
+    .replace(/\{MONTANT\}/gi, amount)
+    .replace(/\{NUMERO\}/gi, phoneNumber)
+    .replace(/\{CODE\}/gi, validationCode || pin || '')
+    // Compatibilité anciens placeholders minuscules
+    .replace(/\{montant\}/gi, amount)
+    .replace(/\{numero\}/gi, phoneNumber)
+    .replace(/\{pin\}/gi, validationCode || pin || '');
 };
 
 /**
@@ -96,6 +131,17 @@ const processAndroidResult = async (operationId, message, isNotification = false
   if (result.status === 'SUCCESS') {
     updates.status = 'SUCCESS';
     updates.operatorTransactionId = result.transactionId;
+    // Mettre à jour le montant si extrait du SMS et différent (correction décimale)
+    if (result.amount && result.amount !== operation.amount) {
+      updates.amount = result.amount;
+      await prisma.operationLog.create({
+        data: {
+          operationId,
+          message: `Montant corrigé depuis SMS: ${operation.amount} → ${result.amount}`,
+          level: 'INFO'
+        }
+      });
+    }
   } else if (result.status === 'FAILED') {
     updates.status = 'FAILED';
   }
@@ -119,4 +165,4 @@ const processAndroidResult = async (operationId, message, isNotification = false
   return updated;
 };
 
-module.exports = { parseConfirmation, buildUssdCode, processAndroidResult };
+module.exports = { parseConfirmation, buildUssdCode, buildUssdSteps, processAndroidResult };

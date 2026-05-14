@@ -1,7 +1,7 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { authenticate, requireAdmin } = require('../middleware/auth');
-const { buildUssdCode } = require('../services/smsParser');
+const { buildUssdCode, buildUssdSteps } = require('../services/smsParser');
 const { notifyOperationUpdate } = require('../services/websocket');
 
 const router = express.Router();
@@ -27,9 +27,19 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Opérateur non configuré ou inactif' });
     }
 
-    // Construire le code USSD
+    // Construire la séquence USSD multi-étapes (nouveau format)
+    const stepsJson = type === 'DEPOT' ? opConfig.ussdStepsDepot : opConfig.ussdStepsRetrait;
+    const ussdSteps = buildUssdSteps(stepsJson, {
+      amount,
+      phoneNumber,
+      validationCode: opConfig.validationCode
+    });
+
+    // Compatibilité ancien format (champ ussdCode pour l'app Android)
     const ussdTemplate = type === 'DEPOT' ? opConfig.ussdDepot : opConfig.ussdRetrait;
-    const ussdCode = buildUssdCode(ussdTemplate, { amount, phoneNumber });
+    const ussdCode = ussdSteps.length > 0
+      ? ussdSteps.join('|')  // étapes séparées par | pour l'app Android
+      : buildUssdCode(ussdTemplate, { amount, phoneNumber, validationCode: opConfig.validationCode });
 
     const operation = await prisma.operation.create({
       data: {
@@ -45,6 +55,9 @@ router.post('/', authenticate, async (req, res) => {
       include: { user: { select: { id: true, username: true } }, operatorConfig: true }
     });
 
+    // Ajouter les étapes USSD à la réponse pour l'app Android
+    const responseData = { ...operation, ussdSteps: ussdSteps.length > 0 ? ussdSteps : null };
+
     await prisma.operationLog.create({
       data: {
         operationId: operation.id,
@@ -54,7 +67,7 @@ router.post('/', authenticate, async (req, res) => {
     });
 
     notifyOperationUpdate(operation);
-    res.status(201).json(operation);
+    res.status(201).json(responseData);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

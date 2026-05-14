@@ -11,6 +11,7 @@ const operationRoutes = require('./routes/operations');
 const deviceRoutes = require('./routes/devices');
 const androidRoutes = require('./routes/android');
 const statsRoutes = require('./routes/stats');
+const setupRoutes = require('./routes/setup');
 
 const app = express();
 const server = http.createServer(app);
@@ -37,6 +38,7 @@ app.use('/api/operations', operationRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/android', androidRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/setup', setupRoutes);
 
 // 404
 app.use((req, res) => {

@@ -15,8 +15,19 @@ const prisma = new PrismaClient();
 // Récupérer les opérations PENDING en attente de traitement pour cet appareil
 router.get('/pending', authenticateDevice, async (req, res) => {
   try {
+    // Filtrer selon les opérateurs assignés à cet appareil
+    let operatorFilter = {};
+    if (req.device.operators) {
+      try {
+        const assignedOperators = JSON.parse(req.device.operators);
+        if (Array.isArray(assignedOperators) && assignedOperators.length > 0) {
+          operatorFilter = { operator: { in: assignedOperators } };
+        }
+      } catch (e) {}
+    }
+
     const operations = await prisma.operation.findMany({
-      where: { status: 'PENDING', deviceId: null },
+      where: { status: 'PENDING', deviceId: null, ...operatorFilter },
       include: { operatorConfig: true },
       orderBy: { createdAt: 'asc' },
       take: 10

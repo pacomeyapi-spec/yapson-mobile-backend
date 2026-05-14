@@ -130,6 +130,9 @@ model Device {
   isActive    Boolean   @default(true)
   lastSeenAt  DateTime?
   token       String    @unique
+  // Opérateurs assignés à cet appareil (JSON array: ["ORANGE","MTN"])
+  // Si null ou vide = traite tous les opérateurs
+  operators   String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }

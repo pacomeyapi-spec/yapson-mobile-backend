@@ -19,16 +19,38 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
 
 // Enregistrer un nouvel appareil
 router.post('/', authenticate, requireAdmin, async (req, res) => {
-  const { name, phoneNumber, deviceId } = req.body;
+  const { name, phoneNumber, deviceId, operators } = req.body;
   if (!name || !deviceId) return res.status(400).json({ error: 'name et deviceId requis' });
   try {
     const token = uuidv4();
     const device = await prisma.device.create({
-      data: { name, phoneNumber, deviceId, token }
+      data: {
+        name, phoneNumber, deviceId, token,
+        operators: operators ? JSON.stringify(operators) : null
+      }
     });
     res.status(201).json(device);
   } catch (err) {
     if (err.code === 'P2002') return res.status(409).json({ error: 'deviceId déjà enregistré' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Mettre à jour un appareil (opérateurs, statut, etc.)
+router.put('/:id', authenticate, requireAdmin, async (req, res) => {
+  const { name, phoneNumber, isActive, operators } = req.body;
+  try {
+    const device = await prisma.device.update({
+      where: { id: req.params.id },
+      data: {
+        ...(name && { name }),
+        ...(phoneNumber !== undefined && { phoneNumber }),
+        ...(isActive !== undefined && { isActive }),
+        operators: operators !== undefined ? (operators ? JSON.stringify(operators) : null) : undefined
+      }
+    });
+    res.json(device);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

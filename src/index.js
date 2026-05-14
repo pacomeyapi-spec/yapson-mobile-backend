@@ -55,4 +55,37 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`🚀 Serveur démarré sur le port ${PORT}`);
   console.log(`📡 WebSocket actif`);
+  // Auto-seed: créer admin + opérateurs si la DB est vide
+  const { PrismaClient } = require('@prisma/client');
+  const bcrypt = require('bcryptjs');
+  const seedPrisma = new PrismaClient();
+  (async () => {
+    try {
+      const count = await seedPrisma.user.count();
+      if (count === 0) {
+        console.log('🌱 Seed: aucun utilisateur trouvé, création admin...');
+        const password = process.env.ADMIN_PASSWORD || 'Yapson@Admin2024!';
+        const hashed = await bcrypt.hash(password, 12);
+        await seedPrisma.user.create({
+          data: { username: 'admin', email: process.env.ADMIN_EMAIL || 'admin@yapson.net', password: hashed, role: 'ADMIN' }
+        });
+        const ops = [
+          { operator: 'ORANGE', name: 'Orange Money', usesNotification: false, timeoutSeconds: 120 },
+          { operator: 'MTN', name: 'MTN MoMo', usesNotification: false, timeoutSeconds: 120 },
+          { operator: 'MOOV', name: 'Moov Money', usesNotification: false, timeoutSeconds: 120 },
+          { operator: 'WAVE', name: 'Wave', usesNotification: true, timeoutSeconds: 180 }
+        ];
+        for (const op of ops) {
+          await seedPrisma.operatorConfig.upsert({ where: { operator: op.operator }, create: op, update: {} });
+        }
+        console.log(`✅ Seed terminé! Admin créé avec password: ${password}`);
+      } else {
+        console.log(`ℹ️ Seed ignoré: ${count} utilisateur(s) déjà présent(s)`);
+      }
+    } catch (e) {
+      console.error('⚠️ Seed error (non-bloquant):', e.message);
+    } finally {
+      await seedPrisma.$disconnect();
+    }
+  })();
 });

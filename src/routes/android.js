@@ -13,6 +13,8 @@ const prisma = new PrismaClient();
  */
 
 // Récupérer les opérations PENDING en attente de traitement pour cet appareil
+const { buildUssdSteps } = require('../services/smsParser');
+
 router.get('/pending', authenticateDevice, async (req, res) => {
   try {
     // Filtrer selon les opérateurs assignés à cet appareil
@@ -32,7 +34,26 @@ router.get('/pending', authenticateDevice, async (req, res) => {
       orderBy: { createdAt: 'asc' },
       take: 10
     });
-    res.json(operations);
+
+    // Calculer les ussdSteps pour chaque opération si pas encore présents
+    const enriched = operations.map(op => {
+      const config = op.operatorConfig;
+      if (!config) return op;
+
+      const stepsJson = op.type === 'DEPOT'
+        ? config.ussdStepsDepot
+        : config.ussdStepsRetrait;
+
+      const ussdSteps = buildUssdSteps(stepsJson, {
+        amount: op.amount,
+        phoneNumber: op.phoneNumber,
+        validationCode: config.validationCode
+      });
+
+      return { ...op, ussdSteps: ussdSteps.length > 0 ? ussdSteps : null };
+    });
+
+    res.json(enriched);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
